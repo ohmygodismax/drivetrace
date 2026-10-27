@@ -1,0 +1,7 @@
+Map data: © OpenStreetMap contributors (ODbL)
+https://www.openstreetmap.org/copyright
+Basemap: © OpenMapTiles, OpenFreeMap
+https://openmaptiles.org/ https://openfreemap.org/
+DemoRoute.kt: route geometry derived from OpenStreetMap through OSRM's demo service on 2026-10-27. ODbL attribution applies to the road geometry. No requests to the routing service are made at runtime.
+MapLibre Native Android 11.13.1: BSD 2-Clause
+https://github.com/maplibre/maplibre-native
