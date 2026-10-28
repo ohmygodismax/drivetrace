@@ -59,7 +59,8 @@ fun RouteMap(frames: List<Frame>, position: Int, modifier: Modifier = Modifier, 
             if(coordinates.size >= 2) features += Feature.fromGeometry(LineString.fromLngLats(coordinates)).apply { addStringProperty("band", band?.name ?: LoadBand.UNKNOWN.name) }
         }
         parts.forEach { part ->
-            if(part.band != band) { flush(); coordinates = mutableListOf(); band = part.band }
+            if(part.points.isEmpty()) { flush(); coordinates = mutableListOf(); band = null; return@forEach }
+            if(part.band != band || (coordinates.isNotEmpty() && coordinates.last() != Point.fromLngLat(part.points.first().second, part.points.first().first))) { flush(); coordinates = mutableListOf(); band = part.band }
             val points = part.points.map { Point.fromLngLat(it.second, it.first) }
             coordinates.addAll(if(coordinates.isEmpty()) points else points.drop(1))
         }
@@ -79,7 +80,7 @@ fun RouteMap(frames: List<Frame>, position: Int, modifier: Modifier = Modifier, 
     }
     val latestFrames by rememberUpdatedState(frames)
     fun fit() {
-        val points = latestFrames.map { LatLng(it.latitude, it.longitude) }.distinct()
+        val points = latestFrames.filter { it.hasLocation }.map { LatLng(it.latitude, it.longitude) }.distinct()
         val current = map ?: return
         if(points.isEmpty()) return
         if(points.size == 1 || points.maxOf { it.latitude } - points.minOf { it.latitude } < 0.0005 && points.maxOf { it.longitude } - points.minOf { it.longitude } < 0.0005) {
@@ -157,16 +158,16 @@ fun RouteMap(frames: List<Frame>, position: Int, modifier: Modifier = Modifier, 
     }
     LaunchedEffect(ready, frames, features) {
         if(!ready || frames.isEmpty()) return@LaunchedEffect
-        val points = frames.map { Point.fromLngLat(it.longitude, it.latitude) }
+        val points = frames.filter { it.hasLocation }.map { Point.fromLngLat(it.longitude, it.latitude) }
         map?.style?.getSourceAs<GeoJsonSource>("trip-route")?.setGeoJson(features)
-        map?.style?.getSourceAs<GeoJsonSource>("trip-start")?.setGeoJson(points.first())
+        map?.style?.getSourceAs<GeoJsonSource>("trip-start")?.setGeoJson(points.firstOrNull()?.let { FeatureCollection.fromFeatures(arrayOf(Feature.fromGeometry(it))) } ?: FeatureCollection.fromFeatures(emptyArray<Feature>()))
     }
     LaunchedEffect(ready, frames, position, features) {
         if(!ready || frames.isEmpty()) return@LaunchedEffect
         val index = position.coerceIn(frames.indices)
-        val points = frames.take(index + 1).map { Point.fromLngLat(it.longitude, it.latitude) }
+        val head = frames[index].takeIf { it.hasLocation }?.let { Point.fromLngLat(it.longitude, it.latitude) }
         map?.style?.getSourceAs<GeoJsonSource>("trip-progress")?.setGeoJson(featuresFor(segments.take(index)))
-        map?.style?.getSourceAs<GeoJsonSource>("trip-head")?.setGeoJson(points.last())
+        map?.style?.getSourceAs<GeoJsonSource>("trip-head")?.setGeoJson(head?.let { FeatureCollection.fromFeatures(arrayOf(Feature.fromGeometry(it))) } ?: FeatureCollection.fromFeatures(emptyArray<Feature>()))
     }
     Box(modifier.clip(RoundedCornerShape(5.dp)).background(Color(0xFF191D22))) {
         AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())

@@ -12,7 +12,7 @@ class SimulatorTest {
     @Test fun `normal scenarios stay within bounds and rpm tracks movement`() {
         listOf(Scenario.CITY,Scenario.HIGHWAY,Scenario.SPORT).forEach { scenario ->
             (0L..180000L step 250L).map { simulator.frame(it,1000,scenario,0.0) }.forEach {
-                assertTrue(it.speed in 0.0..130.0);assertTrue(it.rpm!! in 750..5000);assertTrue(it.throttle!! in 0.0..100.0)
+                assertTrue(it.speed!! in 0.0..130.0);assertTrue(it.rpm!! in 750..5000);assertTrue(it.throttle!! in 0.0..100.0)
                 if(it.speed==0.0)assertEquals(780,it.rpm)
                 assertTrue(it.simulated)
             }
@@ -26,7 +26,7 @@ class SimulatorTest {
     }
     @Test fun `csv contains UTC time units and preserves missing values`() {
         val text=csv(listOf(simulator.frame(47000,0,Scenario.FAULT,0.0)))
-        assertTrue(text.startsWith("timestamp_utc,elapsed_ms,source,simulated,speed_kmh"))
-        assertTrue(text.contains("1970-01-01T00:00:47Z,47000,SIMULATOR,true,0.0,,,,,,"))
+        assertTrue(text.startsWith("timestamp_utc,elapsed_ms,source,simulated,vin,speed_kmh"))
+        assertTrue(text.contains("1970-01-01T00:00:47Z,47000,SIMULATOR,true,,0.0,,,,,,"))
     }
 }
