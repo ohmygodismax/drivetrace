@@ -60,7 +60,7 @@ class MainActivity: ComponentActivity() {
                 Box(Modifier.weight(1f)) {
                     when {
                         replayId != null -> Replay(engine, replayId!!) { replayId = null }
-                        page == "live" -> Live(engine, live) { live.vehicle?.let { engine.selectVehicle(it.id) }; page = "health" }
+                        page == "live" -> Live(engine, live, onOpenTrip = { replayId = it }, onHealth = { live.vehicle?.let { engine.selectVehicle(it.id) }; page = "health" })
                         page == "trips" -> Trips(engine) { replayId = it }
                         page == "health" -> HealthScreen(engine) { replayId = it }
                         else -> Garage(engine)
@@ -105,65 +105,7 @@ class MainActivity: ComponentActivity() {
     }
 }
 
-@Composable fun Live(engine: Engine, state: LiveState, onHealth: () -> Unit = {}) {
-    val miles by engine.miles.collectAsStateWithLifecycle()
-    val fleet by engine.fleetTrips.collectAsStateWithLifecycle()
-    val alerts = remember(fleet, state.vehicle?.id) { healthSignals(fleet.filter { it.vehicleId == state.vehicle?.id }) }
-    var scenarios by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize()) {
-    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Spacer(Modifier.height(2.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Eyebrow(state.vehicle?.identity ?: "Автомобиль"); Text(state.vehicle?.name ?: "Автомобиль", fontSize = 22.sp, letterSpacing = (-0.5).sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 7.dp)) }; Box(Modifier.size(9.dp).background(Accent, CircleShape)) }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) { Icon(Icons.Outlined.BluetoothConnected, null, tint = Secondary, modifier = Modifier.size(14.dp)); Text(if(state.vehicle?.simulated == true) "ELM327 / Simulator" else "ELM327 / Bluetooth Classic", fontSize = 10.sp, color = Muted); Text("/", fontSize = 10.sp, color = Line); Text(if(state.vehicle?.simulated == true) "Демо" else "OBD-II", fontSize = 10.sp, color = Muted) }
-        if(alerts.isNotEmpty()) CardBox(Modifier.fillMaxWidth().clickable(onClick = onHealth)) { Text("${alerts.size} изменения для проверки →", color = Amber, fontSize = 13.sp); Text("По истории поездок этого VIN", fontSize = 10.sp, color = Muted) }
-        state.error?.let { Text(it, color = Amber, fontSize = 12.sp) }
-        if(state.vehicle?.simulated == true && (state.frame.rpm == null || (state.frame.coolant ?: 0.0) > 110)) CardBox(Modifier.fillMaxWidth()) { Text(if(state.frame.rpm == null) "Нет данных · тестовый обрыв потока" else "Высокая температура · тестовое событие", color = Amber, fontSize = 12.sp) }
-        CardBox(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Eyebrow("ТЕКУЩАЯ СКОРОСТЬ"); Spacer(Modifier.weight(1f)); Badge(if(state.running) "LIVE" else "ПАУЗА", if(state.running) Accent else Amber) }
-            Gauge(state.frame, miles)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { MiniValue("ОБОРОТЫ", state.frame.rpm?.let { "%,d".format(it).replace(',', ' ') } ?: "—", "об/мин"); MiniValue("ДИСТАНЦИЯ", "%.2f".format(state.frame.distance * if(miles) 0.621371 else 1.0), if(miles) "ми" else "км"); MiniValue("ВРЕМЯ", clockText(state.frame.elapsed), "в пути") }
-        }
-        if(state.vehicle?.simulated == false) GpsPanel(engine)
-        LoadReading(state.frame)
-        TelemetryGrid(state.frame, state.vehicle?.metrics ?: emptySet())
-        CardBox(Modifier.fillMaxWidth()) { Row { Eyebrow("Скорость за последнюю минуту"); Spacer(Modifier.weight(1f)); Text("Скорость", color = Accent, fontSize = 10.sp) }; Sparkline(state.trail, Modifier.fillMaxWidth().height(70.dp).padding(top = 12.dp)); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("−${clockText((state.trail.lastOrNull()?.elapsed ?: 0) - (state.trail.firstOrNull()?.elapsed ?: 0))}", fontSize = 9.sp, color = Muted); Text("Сейчас", fontSize = 9.sp, color = Muted) } }
-        if(state.vehicle?.simulated == true) CardBox(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Science, null, tint = Accent, modifier = Modifier.size(18.dp)); Text("Симулятор", fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f).padding(start = 8.dp)); TextButton({ scenarios = true }, enabled = !state.recording, contentPadding = PaddingValues(0.dp)) { Text(state.scenario.title, fontSize = 12.sp); Icon(Icons.Outlined.ExpandMore, null, Modifier.size(16.dp)) } }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(engine::toggle, Modifier.weight(1f), shape = RoundedCornerShape(5.dp)) { Icon(if(state.running) Icons.Outlined.Pause else Icons.Outlined.PlayArrow, null, Modifier.size(17.dp)); Text(if(state.running) "Пауза" else "Старт", fontSize = 11.sp) }
-                OutlinedButton(engine::reset, enabled = !state.recording, shape = RoundedCornerShape(5.dp), contentPadding = PaddingValues(10.dp)) { Icon(Icons.Outlined.RestartAlt, "Сброс", Modifier.size(19.dp)) }
-                OutlinedButton(engine::rate, shape = RoundedCornerShape(5.dp), contentPadding = PaddingValues(10.dp)) { Text("${state.rate}×") }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-    }
-    Column(Modifier.fillMaxWidth().background(Bg).padding(16.dp, 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Action(if(state.recording) "Завершить и сохранить поездку" else "Начать запись поездки", if(state.recording) Icons.Outlined.StopCircle else Icons.Outlined.FiberManualRecord, Modifier.fillMaxWidth(), enabled = state.error == null) { engine.record() }
-        Text(if(state.recording) "●  Запись в локальную базу · можно поставить на паузу" else if(state.vehicle?.simulated == true) "Симулятор · локальная запись" else "ELM327 · локальная запись", fontSize = 10.sp, color = if(state.recording) Accent else Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
-    }
-    }
-    if(scenarios) AlertDialog(onDismissRequest = { scenarios = false }, title = { Text("Сценарий поездки") }, text = { Column { Scenario.entries.forEach { s -> Column(Modifier.fillMaxWidth().clickable { engine.scenario(s); scenarios = false }.padding(vertical = 13.dp)) { Text(s.title, color = if(s == state.scenario) Accent else Ink, fontSize = 15.sp); Text(s.subtitle, fontSize = 11.sp, color = Muted, modifier = Modifier.padding(top = 5.dp)) } }; Text("Смена сценария сбрасывает текущую симуляцию. Во время записи недоступна.", fontSize = 11.sp, color = Muted) } }, confirmButton = { TextButton({ scenarios = false }) { Text("Закрыть") } })
-}
 @Composable fun MiniValue(label: String, value: String, unit: String) { Column { Text(label.lowercase().replaceFirstChar { it.titlecase() }, fontSize = 10.sp, color = Muted); Text(value, fontSize = 22.sp, fontFamily = Instruments, modifier = Modifier.padding(top = 5.dp)); Text(unit, fontSize = 9.sp, color = Muted) } }
-@Composable fun Metric(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier) { CardBox(modifier) { Row(verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, tint = color, modifier = Modifier.size(16.dp)); Text(label, fontSize = 10.sp, color = Muted, modifier = Modifier.padding(start = 6.dp)) }; Text(value, fontSize = 25.sp, fontFamily = Instruments, modifier = Modifier.padding(top = 9.dp)) } }
-@Composable fun Gauge(frame: Frame, miles: Boolean) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(frame.speed?.let { "%.0f".format(it * if(miles) 0.621371 else 1.0) } ?: "—", fontFamily = Instruments, fontSize = 76.sp, lineHeight = 84.sp, letterSpacing = (-5).sp)
-            Text(if(miles) "миль/ч" else "км/ч", fontSize = 13.sp, color = Muted, modifier = Modifier.padding(start = 14.dp, bottom = 12.dp))
-            Spacer(Modifier.weight(1f))
-
-        }
-        Canvas(Modifier.fillMaxWidth().height(30.dp)) {
-            val value = ((frame.speed ?: 0.0) / 140).toFloat().coerceIn(0f, 1f)
-            for(i in 0..69) {
-                val x = size.width * i / 70
-                drawLine(if(i / 70f < value) Accent else Line, Offset(x, size.height), Offset(x, if(i % 10 == 0) 0f else size.height * 0.5f), 2.dp.toPx())
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) { listOf(0, 35, 70, 105, 140).forEach { n -> Text(if(miles) "${(n * 0.621371).roundToInt()}" else "$n", fontSize = 9.sp, fontFamily = Instruments, color = Muted) } }
-    }
-}
 @Composable fun Sparkline(frames: List<Frame>, modifier: Modifier, position: Float? = null, rpm: Boolean = false) {
     Canvas(modifier) {
         for(i in 1..3) drawLine(Line,Offset(0f,size.height*i/4),Offset(size.width,size.height*i/4),1f)

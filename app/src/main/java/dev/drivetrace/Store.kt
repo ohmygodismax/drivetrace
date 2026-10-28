@@ -80,6 +80,8 @@ class Engine(val app: Application) {
     val miles = app.preferences.data.map { it[booleanPreferencesKey("miles")] ?: false }.stateIn(scope,SharingStarted.Eagerly,false)
     val connectionMessage = MutableStateFlow<String?>(null)
     val historyBusy = MutableStateFlow(false)
+    private val savedTrip = MutableStateFlow<Trip?>(null)
+    val lastSavedTrip = savedTrip.asStateFlow()
     private var active: Trip? = null
     private var baseElapsed = 0L; private var baseDistance = 0.0; private var recordingStarted = 0L
     private var wallStart = System.currentTimeMillis()
@@ -203,20 +205,23 @@ class Engine(val app: Application) {
             val started=System.currentTimeMillis(); val startFrame=state.value.frame.let { if(it.simulated) it else it.withGps(gps.currentFix(),SystemClock.elapsedRealtime()) }
             baseElapsed=startFrame.elapsed; baseDistance=startFrame.distance; recordingStarted=started
             val trip=Trip(started=started,scenario=if(startFrame.simulated)state.value.scenario.name else "REAL",routeOffsetKm=baseDistance.takeIf { startFrame.simulated },vehicleId=state.value.vehicle!!.id,supported=state.value.vehicle!!.supported)
-            val id=db.insert(trip); active=trip.copy(id=id); emitted.clear()
+            val id=db.insert(trip); active=trip.copy(id=id); emitted.clear(); savedTrip.value=null
             buffer+=Sample.from(id,startFrame.copy(elapsed=0,timestamp=started,distance=0.0))
             mutable.value=state.value.copy(recording=true,running=true)
         } else finish()
         }
     } finally { busy=false } } }
     val recordingElapsed: Long get() = if(state.value.recording) (state.value.frame.elapsed-baseElapsed).coerceAtLeast(0) else 0
+    val recordingDistance: Double get() = if(state.value.recording) (state.value.frame.distance-baseDistance).coerceAtLeast(0.0) else 0.0
     fun stopRecording() { scope.launch { recordingMutex.withLock { finish() } } }
     private suspend fun finish() {
         val trip=active ?: return; flush()
         val frames=db.samples(trip.id).map { it.frame() }
-        db.update(summarize(trip.copy(status="complete"),frames))
+        val completed=summarize(trip.copy(status="complete"),frames)
+        db.update(completed)
         if(trip.scenario==Scenario.FAULT.name) db.diagnostic(DiagnosticSnapshot(vehicleId=trip.vehicleId,capturedAt=System.currentTimeMillis(),codes="P0217",freezeFrame="Демонстрационный стоп-кадр: ОЖ 124 °C; 780 об/мин; нагрузка 3%",simulated=true))
         active=null
+        savedTrip.value=completed
         mutable.value=state.value.copy(recording=false)
     }
     fun disconnect(stopService: Boolean = true) {
