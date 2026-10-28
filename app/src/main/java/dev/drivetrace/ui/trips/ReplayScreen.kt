@@ -25,6 +25,7 @@ import dev.drivetrace.domain.route.routeSelection
 import dev.drivetrace.model.Frame
 import dev.drivetrace.model.ObdMetric
 import dev.drivetrace.model.Vehicle
+import dev.drivetrace.ui.components.TripTelemetryChart
 import dev.drivetrace.telemetry.Engine
 import dev.drivetrace.ui.components.CardBox
 import dev.drivetrace.ui.components.Eyebrow
@@ -150,6 +151,7 @@ import kotlinx.coroutines.launch
                     TextButton({rate=when(rate){1->2;2->5;else->1}}){Text("${rate}×")}
                 }
             }
+            TripTelemetryChart(selectedFrames)
             TelemetryGrid(f, replayMetrics)
             Eyebrow("СОБЫТИЯ УЧАСТКА · ${selectedEvents.size}")
             if(selectedEvents.isEmpty()) Text("На участке нет отмеченных событий",fontSize=12.sp,color=Muted)
@@ -160,6 +162,7 @@ import kotlinx.coroutines.launch
         }
     }
 }
+
 @Composable private fun EventReading(event: TripEvent) {
     CardBox(Modifier.fillMaxWidth()) {
         Text("Событие · ${clockText(event.elapsed)}", color = Amber, fontSize = 11.sp)
