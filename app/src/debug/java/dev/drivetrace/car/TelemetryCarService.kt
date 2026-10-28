@@ -15,12 +15,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import dev.drivetrace.DriveTraceApplication
-import dev.drivetrace.Engine
-import dev.drivetrace.clockText
+import dev.drivetrace.core.format.clockText
+import dev.drivetrace.telemetry.Engine
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /** Experimental DHU integration, deliberately excluded from release builds. */
 class TelemetryCarService : CarAppService() {

@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <!-- Also declare the existing service type here for variant-aware lint analysis. -->
-        <service android:name=".TelemetryService" android:foregroundServiceType="connectedDevice|location" />
+        <service android:name=".telemetry.TelemetryService" android:foregroundServiceType="connectedDevice|location" />
         <meta-data android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
         <meta-data android:name="androidx.car.app.minCarApiLevel" android:value="1" />

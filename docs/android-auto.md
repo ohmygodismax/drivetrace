@@ -62,7 +62,7 @@ LD_LIBRARY_PATH="$HOME/.local/share/drivetrace/dhu-libs/usr/lib/x86_64-linux-gnu
 ```sh
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 ./gradlew :app:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class=dev.drivetrace.CarTelemetryTest
+  -Pandroid.testInstrumentationRunnerArguments.class=dev.drivetrace.car.CarTelemetryTest
 ```
 
 `CarTelemetryTest` запускается на Android-устройстве/эмуляторе с тестовым хостом Car App Library, настоящими движком и Room. Проверяет экран без подключения, симуляцию, начало/сохранение, сохранённые кадры, повторные нажатия и продолжение записи после уничтожения автомобильного экрана. Эти проверки не заменяют визуальную проверку в DHU.
