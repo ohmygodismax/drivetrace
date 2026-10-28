@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import dev.drivetrace.model.Frame
 import dev.drivetrace.model.ObdMetric
+import dev.drivetrace.model.SensorReading
 import java.io.Closeable
 import java.util.UUID
 import kotlinx.coroutines.*
@@ -34,8 +35,13 @@ class ClassicTransport(private val socket: BluetoothSocket): ElmTransport {
     override fun close() { runCatching { socket.close() } }
 }
 data class ElmIdentity(val vin: String?, val metrics: Set<ObdMetric>, val codes: List<String>, val freeze: String)
-class ElmSession(private val transport: ElmTransport): Closeable {
-    private val readings = mutableMapOf<ObdMetric, Pair<Long,Double>>()
+class ElmSession(private val transport: ElmTransport, private val clock: () -> Long = { android.os.SystemClock.elapsedRealtime() }): Closeable {
+    private val readings = mutableMapOf<ObdMetric, SensorReading>()
+    fun sensorReadings(): Map<ObdMetric, SensorReading> = readings.toMap()
+    private suspend fun read(metric: ObdMetric) {
+        val value = ObdCodec.value(transport.command("01%02X".format(metric.pid)),metric)
+        readings[metric] = SensorReading(value, clock())
+    }
     private var slowIndex = 0
     lateinit var identity: ElmIdentity
     suspend fun discover(progress: (String) -> Unit): ElmIdentity {
@@ -50,6 +56,10 @@ class ElmSession(private val transport: ElmTransport): Closeable {
         }
         val metrics = ObdMetric.entries.filter { it.pid in supported }.toSet()
         check(metrics.isNotEmpty()) { "ЭБУ не вернул поддерживаемые OBD-II параметры. Проверьте зажигание и адаптер." }
+        metrics.sortedBy { it.pid }.forEachIndexed { index, metric ->
+            progress("Проверка датчиков ${index + 1}/${metrics.size} · ${metric.title}")
+            read(metric)
+        }
         progress("Чтение VIN")
         val vin = ObdCodec.vin(transport.command("0902",8000))
         progress("Чтение ошибок и стоп-кадра")
@@ -65,12 +75,9 @@ class ElmSession(private val transport: ElmTransport): Closeable {
         val fast = listOf(ObdMetric.RPM,ObdMetric.SPEED,ObdMetric.LOAD,ObdMetric.THROTTLE).filter { it in identity.metrics }
         val slow = (identity.metrics - fast.toSet()).sortedBy { it.pid }
         val selected = fast + if(slow.isEmpty()) emptyList() else listOf(slow[slowIndex++ % slow.size])
-        for(metric in selected) {
-            val value = ObdCodec.value(transport.command("01%02X".format(metric.pid)),metric)
-            if(value == null) readings.remove(metric) else readings[metric] = android.os.SystemClock.elapsedRealtime() to value
-        }
-        val now = android.os.SystemClock.elapsedRealtime()
-        fun v(m: ObdMetric) = readings[m]?.takeIf { now - it.first < 15000 }?.second
+        for(metric in selected) read(metric)
+        val now = clock()
+        fun v(m: ObdMetric) = readings[m]?.takeIf { it.isFresh(now) }?.value
         return Frame(elapsed = elapsed,timestamp = started + elapsed, speed = v(ObdMetric.SPEED),rpm = v(ObdMetric.RPM)?.toInt(),coolant = v(ObdMetric.COOLANT),intake = v(ObdMetric.INTAKE),voltage = v(ObdMetric.VOLTAGE),throttle = v(ObdMetric.THROTTLE),distance = distance,latitude = 0.0,longitude = 0.0,simulated = false,hasLocation = false,
             engineLoad = v(ObdMetric.LOAD),oilC = v(ObdMetric.OIL),manifoldKpa = v(ObdMetric.MAP),baroKpa = v(ObdMetric.BARO),fuelLh = v(ObdMetric.FUEL_RATE),stft = v(ObdMetric.STFT),ltft = v(ObdMetric.LTFT),timing = v(ObdMetric.TIMING),maf = v(ObdMetric.MAF))
     }

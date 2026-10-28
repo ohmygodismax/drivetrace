@@ -26,6 +26,7 @@ import dev.drivetrace.core.format.clockText
 import dev.drivetrace.domain.health.healthSignals
 import dev.drivetrace.model.ObdMetric
 import dev.drivetrace.model.value
+import dev.drivetrace.ui.components.SensorPanel
 import dev.drivetrace.model.Scenario
 import dev.drivetrace.telemetry.Engine
 import dev.drivetrace.telemetry.LiveState
@@ -56,6 +57,7 @@ private val RecordingColor = Color(0xFFEB9187)
     var expanded by rememberSaveable { mutableStateOf(false) }
     var scenarios by remember { mutableStateOf(false) }
     var gpsSettings by remember { mutableStateOf(false) }
+    var sensors by remember { mutableStateOf(false) }
     var identity by remember { mutableStateOf(false) }
     val demo = state.vehicle?.simulated == true
     val frame = state.frame
@@ -86,6 +88,10 @@ private val RecordingColor = Color(0xFFEB9187)
                     Modifier.weight(1f), if(demo) null else ({ gpsSettings = true }))
                 StatusCell("Запись", if(state.recording) clockText(elapsed) else "Выключена", Icons.Outlined.FiberManualRecord,
                     if(state.recording) RecordingColor else Muted, Modifier.weight(1f))
+            }
+            OutlinedButton({ sensors = true }, Modifier.fillMaxWidth()) {
+                val responding = supported.count { metric -> if(demo) frame.value(metric) != null else state.sensors[metric]?.isFresh(android.os.SystemClock.elapsedRealtime()) == true }
+                Text("Датчики · $responding/${supported.size} с данными · подробнее", fontSize = 12.sp)
             }
             state.error?.let { Text(it, color = Amber, fontSize = 13.sp) }
             if((frame.coolant ?: 0.0) > 110 || demo && frame.rpm == null) {
@@ -172,6 +178,12 @@ private val RecordingColor = Color(0xFFEB9187)
                 Text(if(state.recording) "Сохранить поездку" else "Начать запись поездки", fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 10.dp))
             }
             Text(when { state.recording && !demo -> "Запись продолжается при выключенном экране"; state.recording -> "Сохраняем демонстрационную поездку"; saved?.vehicleId == state.vehicle?.id -> "Можно начать новую поездку"; else -> "Показания без записи" }, fontSize = 12.sp, color = Muted)
+        }
+    }
+    if(sensors) ModalBottomSheet(onDismissRequest = { sensors = false }, containerColor = Panel) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SensorPanel(state)
+            TextButton({ sensors = false }, Modifier.align(Alignment.End)) { Text("Готово") }
         }
     }
     if(gpsSettings) ModalBottomSheet(onDismissRequest = { gpsSettings = false }, containerColor = Panel) {

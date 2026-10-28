@@ -99,7 +99,7 @@ class Engine(val app: Application) {
                 }
                 // A disconnect while awaiting I/O must not resurrect the session.
                 if(generation != sessionGeneration || !state.value.connected || state.value.vehicle?.id != s.vehicle?.id) continue
-                mutable.value = state.value.copy(frame = f,trail = (state.value.trail+f).takeLast(200))
+                mutable.value = state.value.copy(frame = f,sensors = elm?.sensorReadings().orEmpty(),trail = (state.value.trail+f).takeLast(200))
                 recordingMutex.withLock { active?.takeIf { f.elapsed > baseElapsed }?.let { trip ->
                     val recorded = f.copy(elapsed = f.elapsed-baseElapsed,timestamp = recordingStarted+f.elapsed-baseElapsed,distance = (f.distance-baseDistance).coerceAtLeast(0.0))
                     buffer += Sample.from(trip.id,recorded)
@@ -159,7 +159,7 @@ class Engine(val app: Application) {
                 if(existing==null) db.addVehicle(vehicle) else db.updateVehicle(vehicle)
                 db.diagnostic(DiagnosticSnapshot(vehicleId=id,capturedAt=System.currentTimeMillis(),codes=identity.codes.joinToString(","),freezeFrame=identity.freeze,simulated=false))
                 selectVehicle(id); sessionGeneration++; elm=session; session=null; wallStart=System.currentTimeMillis()
-                mutable.value=LiveState(connected=true,running=true,vehicle=vehicle,frame=Frame(speed=null,rpm=null,coolant=null,intake=null,voltage=null,throttle=null,simulated=false,hasLocation=false,latitude=0.0,longitude=0.0))
+                mutable.value=LiveState(connected=true,running=true,vehicle=vehicle,sensors=elm!!.sensorReadings(),frame=Frame(speed=null,rpm=null,coolant=null,intake=null,voltage=null,throttle=null,simulated=false,hasLocation=false,latitude=0.0,longitude=0.0))
                 connectionMessage.value=null
             } catch(e: Exception) {
                 if(e is CancellationException) throw e
