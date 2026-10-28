@@ -13,6 +13,9 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    debugImplementation("androidx.car.app:app:1.7.0")
+    debugImplementation("androidx.car.app:app-projected:1.7.0")
+    androidTestImplementation("androidx.car.app:app-testing:1.7.0")
     implementation(platform("androidx.compose:compose-bom:2025.08.00"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.material3:material3")

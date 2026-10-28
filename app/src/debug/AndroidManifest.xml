@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Also declare the existing service type here for variant-aware lint analysis. -->
+        <service android:name=".TelemetryService" android:foregroundServiceType="connectedDevice|location" />
+        <meta-data android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data android:name="androidx.car.app.minCarApiLevel" android:value="1" />
+        <service android:name=".car.TelemetryCarService" android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <!-- DHU discovery placeholder only; DriveTrace is not a POI app. -->
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
