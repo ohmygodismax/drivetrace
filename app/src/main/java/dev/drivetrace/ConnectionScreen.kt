@@ -24,13 +24,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun Connection(engine: Engine,onGarage: ()->Unit = {},onConnected: ()->Unit) {
+@Composable fun Connection(engine: Engine,onGarage: ()->Unit = {},onSettings: ()->Unit = {},onConnected: ()->Unit) {
     val demo by engine.demoMode.collectAsStateWithLifecycle()
     val demoId by engine.demoCar.collectAsStateWithLifecycle()
     val progress by engine.connectionMessage.collectAsStateWithLifecycle()
     val car=DemoVehicles.find { it.id==demoId } ?: DemoVehicles.first()
     val context=LocalContext.current
-    var options by remember { mutableStateOf(false) }
     var stage by rememberSaveable { mutableIntStateOf(0) }
     var manualVin by rememberSaveable { mutableStateOf("") }
     var adapters by remember { mutableStateOf<List<AdapterChoice>>(emptyList()) }
@@ -56,9 +55,9 @@ import kotlinx.coroutines.delay
         else if(Build.VERSION.SDK_INT>=31 && context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.BLUETOOTH_CONNECT)
         else listAdapters()
     }
-    val connecting=progress!=null && !progress!!.startsWith("Ошибка:")
+    val connecting=progress!=null && !progress!!.startsWith("Ошибка")
     Column(Modifier.fillMaxSize().padding(24.dp)) {
-        Row(verticalAlignment=Alignment.CenterVertically) { Text("DriveTrace",fontSize=20.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f));IconButton(onGarage){Icon(Icons.Outlined.Garage,"Открыть гараж",tint=Muted)};IconButton({options=true},enabled=!connecting){Icon(Icons.Outlined.Tune,"Настройки подключения",tint=Muted)} }
+        Row(verticalAlignment=Alignment.CenterVertically) { Text("DriveTrace",fontSize=20.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f));IconButton(onGarage){Icon(Icons.Outlined.Garage,"Открыть гараж",tint=Muted)};IconButton(onSettings){Icon(Icons.Outlined.Settings,"Настройки",tint=Muted)} }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.Center) {
             if(stage<2) {
                 Icon(Icons.Outlined.BluetoothSearching,null,tint=Accent,modifier=Modifier.size(44.dp));Spacer(Modifier.height(24.dp))
@@ -85,17 +84,5 @@ import kotlinx.coroutines.delay
         if(connecting) OutlinedButton({engine.cancelConnection()},Modifier.fillMaxWidth()){Text("Отменить подключение")}
         else Action(when { demo && stage==2->"Подключить автомобиль";demo && stage==4->"Открыть приборы";stage==1||stage==3->"Подключение…";!demo&&stage==2->"Обновить список";else->"Найти автомобиль" },Icons.Outlined.Bluetooth,Modifier.fillMaxWidth(),stage!=1&&stage!=3) { when { demo&&stage==2->stage=3;demo&&stage==4->onConnected();else->search() } }
         Spacer(Modifier.height(12.dp))
-    }
-    if(options) ModalBottomSheet(onDismissRequest={options=false},containerColor=Panel) {
-        Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-            Text("Подключение",fontSize=22.sp,fontWeight=FontWeight.Medium)
-            Row(verticalAlignment=Alignment.CenterVertically){Text("Режим симуляции",Modifier.weight(1f));Switch(demo,{engine.demo(it)})}
-            if(!demo) GpsPanel(engine)
-            if(demo) DemoVehicles.forEach { v -> Row(Modifier.fillMaxWidth().clickable{engine.demoVehicle(v.id)}.padding(vertical=5.dp),verticalAlignment=Alignment.CenterVertically) {
-                RadioButton(demoId==v.id,{engine.demoVehicle(v.id)});Column{Text(v.name,fontSize=13.sp);Text(v.identity,fontSize=10.sp,color=Muted,fontFamily=Instruments)}
-            } }
-            Text(if(demo)"Демонстрационные VIN и показания. У второго автомобиля часть параметров недоступна." else "Bluetooth Classic. Предварительно выполните сопряжение ELM327 в Android.",fontSize=12.sp,color=Muted,lineHeight=18.sp)
-            TextButton({options=false},modifier=Modifier.align(Alignment.End)){Text("Готово")};Spacer(Modifier.height(12.dp))
-        }
     }
 }

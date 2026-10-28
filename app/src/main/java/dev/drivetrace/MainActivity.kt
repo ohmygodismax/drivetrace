@@ -48,40 +48,49 @@ class MainActivity: ComponentActivity() {
     val currentTrips by engine.trips.collectAsStateWithLifecycle()
     val signals = remember(currentTrips) { healthSignals(currentTrips) }
     var page by rememberSaveable { mutableStateOf("live") }
-    LaunchedEffect(live.connected) { page = "live" }
+    var wasConnected by rememberSaveable { mutableStateOf(live.connected) }
+    LaunchedEffect(live.connected) {
+        if(live.connected != wasConnected) { page = "live"; wasConnected = live.connected }
+    }
     var replayId by rememberSaveable { mutableStateOf<Long?>(null) }
+    androidx.activity.compose.BackHandler(enabled = replayId == null && page != "live") { page = "live" }
     Surface(color = Bg, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-            if(!live.connected && page == "live" && replayId == null) Connection(engine, onGarage = { page = "settings" }) { page = "live"; replayId = null; engine.connect() }
-            else {
-                Row(Modifier.fillMaxWidth().padding(22.dp, 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Brand(Modifier.weight(1f)); Badge(if(live.vehicle?.simulated == true) "SIMULATED" else if(live.connected) "ELM327" else "Не подключён", Accent)
-                }
-                Box(Modifier.weight(1f)) {
-                    when {
-                        replayId != null -> Replay(engine, replayId!!) { replayId = null }
-                        page == "live" -> Live(engine, live, onOpenTrip = { replayId = it }, onHealth = { live.vehicle?.let { engine.selectVehicle(it.id) }; page = "health" })
-                        page == "trips" -> Trips(engine) { replayId = it }
-                        page == "health" -> HealthScreen(engine) { replayId = it }
-                        else -> Garage(engine)
+            val connectingScreen = !live.connected && page == "live" && replayId == null
+            if(!connectingScreen) Row(Modifier.fillMaxWidth().padding(22.dp, 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Brand(Modifier.weight(1f))
+                Badge(if(live.vehicle?.simulated == true) "SIMULATED" else if(live.connected) "ELM327" else "Не подключён", Accent)
+            }
+            Box(Modifier.weight(1f)) {
+                when {
+                    replayId != null -> Replay(engine, replayId!!) { replayId = null }
+                    connectingScreen -> Connection(engine, onGarage = { page = "garage" }, onSettings = { page = "settings" }) {
+                        page = "live"; replayId = null; engine.connect()
                     }
-                }
-                if(replayId == null) Row(Modifier.fillMaxWidth().border(BorderStroke(1.dp, Line)).padding(vertical = 10.dp)) {
-                    listOf(Triple("live", "Приборы", Icons.Outlined.Speed), Triple("trips", "Поездки", Icons.Outlined.Route), Triple("health", "Динамика", Icons.Outlined.MonitorHeart), Triple("settings", "Гараж", Icons.Outlined.Garage)).forEach { (id, title, icon) ->
-                        Column(Modifier.weight(1f).clickable { page = id }.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Icon(icon, title, tint = if(page == id) Accent else Muted, modifier = Modifier.size(22.dp)); Text(title + if(id == "health" && signals.isNotEmpty()) " · ${signals.size}" else "", color = if(page == id) Accent else Muted, fontSize = 10.sp)
-                        }
-                    }
+                    page == "live" -> Live(engine, live, onOpenTrip = { replayId = it }, onHealth = {
+                        live.vehicle?.let { engine.selectVehicle(it.id) }; page = "health"
+                    })
+                    page == "trips" -> Trips(engine) { replayId = it }
+                    page == "health" -> HealthScreen(engine) { replayId = it }
+                    page == "garage" -> Garage(engine)
+                    else -> SettingsScreen(engine)
                 }
             }
+            if(replayId == null) BottomNavigation(page, signals.size) { page = it }
         }
     }
 }
+
 @Composable fun Brand(modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("DriveTrace", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.6).sp)
-        Box(Modifier.width(1.dp).height(16.dp).background(Line))
-        Text("бортовой журнал", color = Muted, fontSize = 10.sp)
+    BoxWithConstraints(modifier) {
+        val showTagline = maxWidth >= 240.dp && androidx.compose.ui.platform.LocalDensity.current.fontScale <= 1.15f
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("DriveTrace", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.6).sp, maxLines = 1)
+            if(showTagline) {
+                Box(Modifier.width(1.dp).height(16.dp).background(Line))
+                Text("бортовой журнал", color = Muted, fontSize = 10.sp, maxLines = 1)
+            }
+        }
     }
 }
 @Composable fun Badge(text: String, color: Color = Secondary) {

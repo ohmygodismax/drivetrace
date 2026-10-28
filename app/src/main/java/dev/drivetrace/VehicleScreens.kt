@@ -47,8 +47,6 @@ import kotlin.math.max
     val selected by engine.selectedVehicle.collectAsStateWithLifecycle()
     val fleet by engine.fleetTrips.collectAsStateWithLifecycle()
     val live by engine.state.collectAsStateWithLifecycle()
-    val interval by engine.interval.collectAsStateWithLifecycle()
-    val miles by engine.miles.collectAsStateWithLifecycle()
     var rename by remember { mutableStateOf<Vehicle?>(null) }
     var name by remember { mutableStateOf("") }
     var disconnect by remember { mutableStateOf(false) }
@@ -68,17 +66,9 @@ import kotlin.math.max
         selected?.let { car ->
             OutlinedButton({capabilities=true},Modifier.fillMaxWidth()){Text("Параметры автомобиля · ${car.metrics.size}/${ObdMetric.entries.size}",fontSize=12.sp)}
         }
-        CardBox(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment=Alignment.CenterVertically){Text("Мили вместо километров",Modifier.weight(1f),fontSize=13.sp);Switch(miles,{engine.settings(interval,it)})}
-            Text("Интервал симуляции",fontSize=12.sp,color=Muted,modifier=Modifier.padding(top=12.dp))
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(200,250,500).forEach{v->FilterChip(interval==v,{engine.settings(v,miles)},label={Text("$v мс",fontSize=11.sp)})}}
-            Text("У ELM частота зависит от адаптера и числа параметров. Время замеров различается.",fontSize=10.sp,color=Muted,lineHeight=16.sp)
+        if(live.connected) OutlinedButton({disconnect=true},Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.LinkOff,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("Отключить автомобиль")
         }
-        OutlinedButton({disconnect=true},Modifier.fillMaxWidth()){Icon(Icons.Outlined.LinkOff,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("Отключить автомобиль")}
-        Text("DriveTrace 0.3 · Bluetooth Classic\nПоездки хранятся локально. Для карты нужен интернет. Фоновая запись работает при подключённом ELM. GPS включается отдельно.",fontSize=10.sp,color=Muted,lineHeight=17.sp)
-        val uri=androidx.compose.ui.platform.LocalUriHandler.current
-        TextButton({uri.openUri("https://commons.wikimedia.org/wiki/File:2023_FAW-Volkswagen_Tayron_300TSI_(facelift,_front).jpg")},contentPadding=PaddingValues(0.dp)){Text("Фото: User3204 · CC BY-SA 4.0",fontSize=10.sp)}
-        Text("Фото Tayron 2023 (300TSI) иллюстрирует кузов. Шрифты IBM Plex: SIL OFL. Карта: OpenFreeMap, OpenMapTiles, © OpenStreetMap.",fontSize=10.sp,color=Muted,lineHeight=16.sp)
     }
     if(rename!=null)AlertDialog(onDismissRequest={rename=null},title={Text("Название автомобиля")},text={OutlinedTextField(name,{name=it.take(80)},singleLine=true,label={Text("Название")})},confirmButton={TextButton({rename?.let{engine.renameVehicle(it,name)};rename=null}){Text("Сохранить")}},dismissButton={TextButton({rename=null}){Text("Отмена")}})
     if(disconnect)AlertDialog(onDismissRequest={disconnect=false},title={Text("Отключить автомобиль?")},text={Text(if(live.recording)"Текущая поездка будет сохранена за VIN подключённого автомобиля." else "История и наблюдения останутся в гараже.")},confirmButton={TextButton({engine.disconnect();disconnect=false}){Text("Отключить")}},dismissButton={TextButton({disconnect=false}){Text("Отмена")}})
